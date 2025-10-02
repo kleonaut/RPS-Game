@@ -4,13 +4,7 @@ import discord
 from discord.ext import commands
 from discord.commands import Option
 
-# Minimal intents (no privileged intents needed)
-intents = discord.Intents.default()
-
-
-# Create bot
-bot = commands.Bot(command_prefix="!", intents=intents)
-
+# Load data and config
 if os.path.exists("players.json"):
     with open("players.json", "r") as f: # r = read mode, w = write mode
         data = json.load(f) # data is now a dict
@@ -24,7 +18,7 @@ with open("config.json", "r") as f:
 GUILD = config["guild_id"]
 TOKEN = config["token"]
 
-
+# Temp object that stores info about the ongoing duel
 class DuelEvent:
 
     def __init__(self, player0: discord.Member, player1: discord.Member):
@@ -39,14 +33,15 @@ class DuelEvent:
         if self.moves[0] and self.moves[1]:
             return True
 
-
     def winner(self):
 
+        # If the duel is not complete
         if not self.moves[0] or not self.moves[1]:
             return None
 
+        # If it's a tie
         if self.moves[0] == self.moves[1]:
-            return None  # tie
+            return None
 
         beats = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
         if beats[self.moves[0]] == self.moves[1]:
@@ -55,7 +50,8 @@ class DuelEvent:
             return self.p1
 
 
-# --- Button Example ---
+# ------ Rock - Paper - Scissors buttons ------
+
 
 class MoveSelectionView(discord.ui.View):
 
@@ -64,12 +60,14 @@ class MoveSelectionView(discord.ui.View):
         self.playerID = playerID
         self.duel = duelEvent
 
+    # Every choice calls this function
     async def process_move(self, interaction: discord.Interaction, move: str):
 
         self.duel.place_move(self.playerID, move)
         self.disable_all_items()
         await interaction.response.edit_message(view=self)
 
+        # Resolve the duel
         if self.duel.is_complete():
             winner = self.duel.winner()
             if winner:
@@ -86,6 +84,7 @@ class MoveSelectionView(discord.ui.View):
             else:
                 await interaction.followup.send(f"{self.duel.p0.mention} plays {self.duel.moves[0]}\n{self.duel.p1.mention} plays {self.duel.moves[1]}\nIts a tie!!", ephemeral=False)
 
+    # Buttons themselves
     @discord.ui.button(label="Rock", style=discord.ButtonStyle.success)
     async def rock_button(self, button, interaction):
         for child in self.children:
@@ -107,6 +106,10 @@ class MoveSelectionView(discord.ui.View):
                 child.style=discord.ButtonStyle.secondary
         await self.process_move(interaction, "scissors")
 
+
+# ------ Two player buttons. This exists to confirm both players. Each presses their own name and receives move options ------
+
+
 class AcceptDuelView(discord.ui.View):
 
     def __init__(self, duelEvent: DuelEvent):
@@ -116,6 +119,7 @@ class AcceptDuelView(discord.ui.View):
         self.p0_button.label = f"{self.duel.p0.display_name}"
         self.p1_button.label = f"{self.duel.p1.display_name}"
 
+    # Prevent others from confirming
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.duel.p0.id and interaction.data["custom_id"] == "p0":
             return True
@@ -139,18 +143,17 @@ class AcceptDuelView(discord.ui.View):
         await interaction.followup.send("\u200b", view=MoveSelectionView(1, self.duel), ephemeral=True)
 
 
-# --- Slash Command ---
-
+# ------ Slash commands ------
 
 
 @bot.slash_command(guild_ids=[GUILD], name="rps", description="Challenge another user in a game of Rock-Paper-Scissors")
 async def rps(ctx, opponent: Option(discord.Member, "Pick a user to challange", required = True)):
+    # Keep this code, it prevents user for challanging themselves
     #if ctx.author.id == opponent.id:
     #    await ctx.respond(f"Don't play with yourself :P", ephemeral=True)
     #else:
         duelEvent = DuelEvent(ctx.author, opponent)
         await ctx.respond(f"{ctx.author.mention} challenges {opponent.mention} to an RPS duel. Both must accept this challenge to proceed.", view=AcceptDuelView(duelEvent))
-        #await ctx.followup.send("\u200b", view=MoveSelectionView(), ephemeral=True)
 
 @bot.slash_command(guild_ids=[GUILD], name="rps-stats", description="See RPS stastics of a chosen user")
 async def wincount(ctx, user: Option(discord.Member, "Pick a user to analyse", required = True)):
@@ -161,11 +164,18 @@ async def wincount(ctx, user: Option(discord.Member, "Pick a user to analyse", r
         win_or_wins = "win"
     await ctx.respond(f"{user.display_name} has {data[user_id]["xp"]} XP and {data[user_id]["wins"]} {win_or_wins}")
 
-# --- Log "READY" when booted up ---
+
+# ----- Create the bot ------
+
+
+# Default intents, the bot can't read message content
+intents = discord.Intents.default()
+
+# Create bot with default intents
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 @bot.event
 async def on_ready():
     print("--- COMMANDS READY ---")
-
-# Run bot
 
 bot.run(TOKEN)
