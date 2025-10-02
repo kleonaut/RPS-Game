@@ -19,6 +19,11 @@ else:
     data = {}  # start empty
     print("--- DATA FILE NOT FOUND ---")
 
+with open("config.json", "r") as f:
+    config = json.load(f)
+GUILD = config["guild_id"]
+TOKEN = config["token"]
+
 
 class DuelEvent:
 
@@ -162,8 +167,5 @@ async def on_ready():
     print("--- COMMANDS READY ---")
 
 # Run bot
-with open("config.json", "r") as f:
-    config = json.load(f)
-GUILD = config["guild_id"]
-TOKEN = config["token"]
+
 bot.run(TOKEN)
