@@ -19,6 +19,7 @@ else:
     data = {}  # start empty
     print("--- DATA FILE NOT FOUND ---")
 
+
 class DuelEvent:
 
     def __init__(self, player0: discord.Member, player1: discord.Member):
@@ -134,7 +135,10 @@ class AcceptDuelView(discord.ui.View):
 
 
 # --- Slash Command ---
-@bot.slash_command(guild_ids=[1422138321823338508], name="rps", description="Challenge another user in a game of Rock-Paper-Scissors")
+
+
+
+@bot.slash_command(guild_ids=[GUILD], name="rps", description="Challenge another user in a game of Rock-Paper-Scissors")
 async def rps(ctx, opponent: Option(discord.Member, "Pick a user to challange", required = True)):
     #if ctx.author.id == opponent.id:
     #    await ctx.respond(f"Don't play with yourself :P", ephemeral=True)
@@ -143,7 +147,7 @@ async def rps(ctx, opponent: Option(discord.Member, "Pick a user to challange", 
         await ctx.respond(f"{ctx.author.mention} challenges {opponent.mention} to an RPS duel. Both must accept this challenge to proceed.", view=AcceptDuelView(duelEvent))
         #await ctx.followup.send("\u200b", view=MoveSelectionView(), ephemeral=True)
 
-@bot.slash_command(guild_ids=[1422138321823338508], name="rps-stats", description="See RPS stastics of a chosen user")
+@bot.slash_command(guild_ids=[GUILD], name="rps-stats", description="See RPS stastics of a chosen user")
 async def wincount(ctx, user: Option(discord.Member, "Pick a user to analyse", required = True)):
     user_id = str(user.id)
     data.setdefault(user_id, {"username": user.name, "xp": 0, "wins": 0}) # if user is not in data, create it with default values
@@ -160,4 +164,6 @@ async def on_ready():
 # Run bot
 with open("config.json", "r") as f:
     config = json.load(f)
+GUILD = config["guild_id"]
 TOKEN = config["token"]
+bot.run(TOKEN)
