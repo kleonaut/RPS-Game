@@ -137,7 +137,7 @@ class AcceptDuelView(discord.ui.View):
 @bot.slash_command(guild_ids=[1422138321823338508], name="rps", description="Challenge another user in a game of Rock-Paper-Scissors")
 async def rps(ctx, opponent: Option(discord.Member, "Pick a user to challange", required = True)):
     #if ctx.author.id == opponent.id:
-    #    await ctx.respond(f"Don’t play with yourself :P", ephemeral=True)
+    #    await ctx.respond(f"Don't play with yourself :P", ephemeral=True)
     #else:
         duelEvent = DuelEvent(ctx.author, opponent)
         await ctx.respond(f"{ctx.author.mention} challenges {opponent.mention} to an RPS duel. Both must accept this challenge to proceed.", view=AcceptDuelView(duelEvent))
@@ -158,5 +158,6 @@ async def on_ready():
     print("--- COMMANDS READY ---")
 
 # Run bot
-TOKEN = os.getenv("DISCORD_TOKEN")
-bot.run(TOKEN)
+with open("config.json", "r") as f:
+    config = json.load(f)
+TOKEN = config["token"]
