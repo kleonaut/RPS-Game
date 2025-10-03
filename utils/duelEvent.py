@@ -19,8 +19,6 @@ class DuelEvent:
         self.players = [player1, player2]
 
     def make_a_move(self, player: discord.Member, move: Move):
-        # If player plays with themselves (same player moves twice), use 0 for second player id
-        # TODO: Make this only possible for ME outside this class
         if player.id in self.moves:
             self.moves[0] = move
         # Make move
