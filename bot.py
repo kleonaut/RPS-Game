@@ -4,6 +4,13 @@ import discord
 from discord.ext import commands
 from discord.commands import Option
 
+
+# Default intents, the bot can't read message content
+intents = discord.Intents.default()
+
+# Create bot with default intents
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 # Load data and config
 if os.path.exists("players.json"):
     with open("players.json", "r") as f: # r = read mode, w = write mode
@@ -165,14 +172,7 @@ async def wincount(ctx, user: Option(discord.Member, "Pick a user to analyse", r
     await ctx.respond(f"{user.display_name} has {data[user_id]["xp"]} XP and {data[user_id]["wins"]} {win_or_wins}")
 
 
-# ----- Create the bot ------
-
-
-# Default intents, the bot can't read message content
-intents = discord.Intents.default()
-
-# Create bot with default intents
-bot = commands.Bot(command_prefix="!", intents=intents)
+# ----- Run the bot ------
 
 @bot.event
 async def on_ready():
