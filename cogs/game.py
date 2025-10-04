@@ -28,11 +28,10 @@ class Game(commands.Cog):
         # Cant's play with yourself unless you are a developer
         if ctx.author.id == opponent.id and ctx.author.id != DEV_ID:
             await ctx.respond(f"You can't challenge yourself", ephemeral=True)
-
-        # Duel object tracks players and their moves, and calculates the outcome
-        duel = DuelEvent(ctx.author, opponent)
-        await ctx.respond(f"{ctx.author.mention} challenges {opponent.mention} to an RPS duel. Both must accept this challenge to proceed.", view=Game.ConfirmDuelMessage(duel, self.data))
-
+        else:
+            # Duel object tracks players and their moves, and calculates the outcome
+            duel = DuelEvent(ctx.author, opponent)
+            await ctx.respond(f"{ctx.author.mention} challenges {opponent.mention} to an RPS duel. Both must accept this challenge to proceed.", view=Game.ConfirmDuelMessage(duel, self.data))
 
 
 
@@ -66,6 +65,7 @@ class Game(commands.Cog):
             self.disable_on_timeout = True
             self.duel = duel
             self.data = data
+            self.confirmCount = 0
 
             # Each button has the name of a player on it
             self.player1_button.label = f"{self.duel.players[0].display_name}"
@@ -84,21 +84,31 @@ class Game(commands.Cog):
             await interaction.response.defer(ephemeral=True)
             return False
 
+        # Both buttons do the same thing. The only difference is their labels and who can press them
+        async def process_button_click(self, interaction: discord.Interaction, button: discord.ui.Button):
+            button.disabled = True
+            button.style = discord.ButtonStyle.success
+
+            # TODO: Timeout returns these buttons. Fix
+            # Remove buttons after both users have used them. Conserve space
+            self.confirmCount += 1
+            if self.confirmCount > 1:
+                await interaction.response.edit_message(view=None)
+            else:
+                await interaction.response.edit_message(view=self)
+
+            # Respond to each person with their respective move picker
+            await interaction.followup.send(view=Game.PickMoveMessage(interaction.user, self.duel, self.data, interaction.message), ephemeral=True)
+
         # First player button
         @discord.ui.button(label="placeholder", style=discord.ButtonStyle.secondary, custom_id="player1_button")  # type: ignore
         async def player1_button(self, button, interaction):
-            button.disabled = True
-            button.style = discord.ButtonStyle.success
-            await interaction.response.edit_message(view=self)
-            await interaction.followup.send("\u200b", view=Game.PickMoveMessage(interaction.user, self.duel, self.data), ephemeral=True)
+            await self.process_button_click(interaction, button)
 
         # Second player button
         @discord.ui.button(label="placeholder", style=discord.ButtonStyle.secondary, custom_id="player2_button")  # type: ignore
         async def player2_button(self, button, interaction):
-            button.disabled = True
-            button.style = discord.ButtonStyle.success
-            await interaction.response.edit_message(view=self)
-            await interaction.followup.send("\u200b", view=Game.PickMoveMessage(interaction.user, self.duel, self.data), ephemeral=True)
+            await self.process_button_click(interaction, button)
 
 
 
@@ -108,12 +118,13 @@ class Game(commands.Cog):
     # Contains a button for rock, paper, and scissors
     # When both players confirm their choices, a final message is sent, the duel is logged, and then saved
     class PickMoveMessage(discord.ui.View):
-        def __init__(self, player: discord.Member, duel: DuelEvent, data: DataHolder):
+        def __init__(self, player: discord.Member, duel: DuelEvent, data: DataHolder, prev_message: discord.Message):
             super().__init__()
             self.disable_on_timeout = True
             self.player = player
             self.duel = duel
             self.data = data
+            self.prev_message = prev_message
 
         # Every choice, whether it's rock, paper, or scissors, calls this function
         async def confirm_move(self, interaction: discord.Interaction, move: Move):
@@ -124,20 +135,22 @@ class Game(commands.Cog):
             # When both players made their choices, resolve the game, log, and save
             if self.duel.did_both_players_confirm_moves():
 
+                # Delete previous message
+                try: await self.prev_message.delete()
+                except discord.NotFound: pass # Message was already deleted
+
                 # If the duel is over, the winner is determined and rewarded, the game is logged and saved
                 if self.duel.is_fully_completed():
 
                     # Pick one of two random messages
                     if randint(0, 1) == 1:
-                        await interaction.followup.send(
+                        await interaction.channel.send(
                             f"{self.duel.winner.mention} plays {self.duel.winner.move} and beats {self.duel.loser.mention}'s {self.duel.loser.move}\n"
-                            f"{self.duel.winner.mention} has won second time and ended the duel! *+20 XP*",
-                            ephemeral=False)
+                            f"{self.duel.winner.mention} has won second time and ended the duel! *+20 XP*")
                     else:
-                        await interaction.followup.send(
+                        await interaction.channel.send(
                             f"{self.duel.loser.mention} plays {self.duel.loser.move} and loses to {self.duel.winner.mention}'s {self.duel.winner.move}\n"
-                            f"{self.duel.winner.mention} won! Game over! *+20 XP*",
-                            ephemeral=False)
+                            f"{self.duel.winner.mention} won! Game over! *+20 XP*")
 
                     # Update user's stats and save
                     self.data.log_duel_results(self.duel)
@@ -148,23 +161,22 @@ class Game(commands.Cog):
                 else:
                     # In case of tie, send an appropriate message
                     if self.duel.is_a_tie:
-                        await interaction.followup.send(
+                        await interaction.channel.send(
                             f"Both {self.duel.players[0].mention} and {self.duel.players[1].mention} play {self.duel.players[0].move}\n"
-                            f"Its a tie! Keep going!", view=Game.ConfirmDuelMessage(self.duel, self.data),
-                            ephemeral=False)
+                            f"Its a tie! Keep going!", view=Game.ConfirmDuelMessage(self.duel, self.data))
 
                     # In case of no tie, send one of two messages at random for variety
                     else:
                         if randint(0, 1) == 1:
-                            await interaction.followup.send(
+                            await interaction.channel.send(
                                 f"{self.duel.winner.mention} plays {self.duel.winner.move} and beats {self.duel.loser.mention}'s {self.duel.loser.move}\n"
                                 f"{self.duel.winner.mention} wins this round! Next round starts now!",
-                                view=Game.ConfirmDuelMessage(self.duel, self.data), ephemeral=False)
+                                view=Game.ConfirmDuelMessage(self.duel, self.data))
                         else:
-                            await interaction.followup.send(
+                            await interaction.channel.send(
                                 f"{self.duel.loser.mention} plays {self.duel.loser.move} and loses to {self.duel.winner.mention}'s {self.duel.winner.move}\n"
                                 f"{self.duel.winner.mention} wins this round! One more!",
-                                view=Game.ConfirmDuelMessage(self.duel, self.data), ephemeral=False)
+                                view=Game.ConfirmDuelMessage(self.duel, self.data))
 
         # Green rock button
         @discord.ui.button(label="Rock", style=discord.ButtonStyle.success)  # type: ignore
