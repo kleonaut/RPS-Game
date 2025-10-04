@@ -71,6 +71,8 @@ class Game(commands.Cog):
             self.player1_button.label = f"{self.duel.players[0].display_name}"
             self.player2_button.label = f"{self.duel.players[1].display_name}"
 
+            self.duel.begin_next_round() # Clears data from previous round if it happened
+
         # TODO: Add time out message. Timeout function already exists. Consider expanding timeout time for now
 
         # Prevent others from confirming, only player with the name of the button can confirm
@@ -120,22 +122,49 @@ class Game(commands.Cog):
             self.duel.make_a_move(self.player, move)
 
             # When both players made their choices, resolve the game, log, and save
-            if self.duel.is_complete():
-                if self.duel.is_a_tie:
-                    await interaction.followup.send(f"Both {self.duel.players[0].mention} and {self.duel.players[1].mention} play {self.duel.moves[self.duel.players[0].id]}\n"
-                                                    f"Its a tie! No XP earned", ephemeral=False)
-                else:
-                    # Slightly different messages for variety
-                    if randint(0, 1) == 1:
-                        await interaction.followup.send( f"{self.duel.winner.mention} plays {self.duel.moves[self.duel.winner.id]} and beats {self.duel.loser.mention}'s {self.duel.moves[self.duel.loser.id]}\n\n"
-                                                     f"{self.duel.winner.mention} wins and earns 20 XP!", ephemeral=False)
-                    else:
-                        await interaction.followup.send( f"{self.duel.loser.mention} plays {self.duel.moves[self.duel.loser.id]} and loses to {self.duel.winner.mention}'s {self.duel.moves[self.duel.winner.id]}\n\n"
-                                                     f"{self.duel.winner.mention} wins! 20 XP earned", ephemeral=False)
+            if self.duel.did_both_players_confirm_moves():
 
-                # Update user's stats and save
-                self.data.log_duel_results(self.duel)
-                self.data.save_to_disk()
+                # If the duel is over, the winner is determined and rewarded, the game is logged and saved
+                if self.duel.is_fully_completed():
+
+                    # Pick one of two random messages
+                    if randint(0, 1) == 1:
+                        await interaction.followup.send(
+                            f"{self.duel.winner.mention} plays {self.duel.winner.move} and beats {self.duel.loser.mention}'s {self.duel.loser.move}\n"
+                            f"{self.duel.winner.mention} has won second time and ended the duel! *+20 XP*",
+                            ephemeral=False)
+                    else:
+                        await interaction.followup.send(
+                            f"{self.duel.loser.mention} plays {self.duel.loser.move} and loses to {self.duel.winner.mention}'s {self.duel.winner.move}\n"
+                            f"{self.duel.winner.mention} won! Game over! *+20 XP*",
+                            ephemeral=False)
+
+                    # Update user's stats and save
+                    self.data.log_duel_results(self.duel)
+                    self.data.save_to_disk()
+                    pass
+
+                # If the duel continues to the next round, the winner of this round is called, and the confirm screen buttons are offered again
+                else:
+                    # In case of tie, send an appropriate message
+                    if self.duel.is_a_tie:
+                        await interaction.followup.send(
+                            f"Both {self.duel.players[0].mention} and {self.duel.players[1].mention} play {self.duel.players[0].move}\n"
+                            f"Its a tie! Keep going!", view=Game.ConfirmDuelMessage(self.duel, self.data),
+                            ephemeral=False)
+
+                    # In case of no tie, send one of two messages at random for variety
+                    else:
+                        if randint(0, 1) == 1:
+                            await interaction.followup.send(
+                                f"{self.duel.winner.mention} plays {self.duel.winner.move} and beats {self.duel.loser.mention}'s {self.duel.loser.move}\n"
+                                f"{self.duel.winner.mention} wins this round! Next round starts now!",
+                                view=Game.ConfirmDuelMessage(self.duel, self.data), ephemeral=False)
+                        else:
+                            await interaction.followup.send(
+                                f"{self.duel.loser.mention} plays {self.duel.loser.move} and loses to {self.duel.winner.mention}'s {self.duel.winner.move}\n"
+                                f"{self.duel.winner.mention} wins this round! One more!",
+                                view=Game.ConfirmDuelMessage(self.duel, self.data), ephemeral=False)
 
         # Green rock button
         @discord.ui.button(label="Rock", style=discord.ButtonStyle.success)  # type: ignore
